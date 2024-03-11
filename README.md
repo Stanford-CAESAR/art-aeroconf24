@@ -1,4 +1,4 @@
-# Autonomous Rendezvous Transformer
+# Autonomous Rendezvous Transformer (ART)
 Official implementation of "Transformers for Trajectory Optimization with Applications to Spacecraft Rendezvous". 
 
 This [paper](https://arxiv.org/abs/2310.13831) was presented at IEEE Aerospace Conference 2024, Big Sky, Montana, USA.
