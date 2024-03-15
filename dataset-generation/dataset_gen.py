@@ -105,6 +105,6 @@ if i_unfeas:
     oe = np.delete(oe, i_unfeas, axis=0)
 
 #  Save dataset
-np.savez_compressed('dataset/dataset-rpod-v05-scp', states_roe_scp = states_roe_scp, states_rtn_scp = states_rtn_scp, actions_scp=actions_scp)
-np.savez_compressed('dataset/dataset-rpod-v05-cvx', states_roe_cvx = states_roe_cvx, states_rtn_cvx = states_rtn_cvx, actions_cvx=actions_cvx)
-np.savez_compressed('dataset/dataset-rpod-v05-param', time = time, oe = oe, dtime = dtime, horizons = horizons)
+np.savez_compressed(root_folder + '/dataset/dataset-rpod-v05-scp', states_roe_scp = states_roe_scp, states_rtn_scp = states_rtn_scp, actions_scp=actions_scp)
+np.savez_compressed(root_folder + '/dataset/dataset-rpod-v05-cvx', states_roe_cvx = states_roe_cvx, states_rtn_cvx = states_rtn_cvx, actions_cvx=actions_cvx)
+np.savez_compressed(root_folder + '/dataset/dataset-rpod-v05-param', time = time, oe = oe, dtime = dtime, horizons = horizons)
