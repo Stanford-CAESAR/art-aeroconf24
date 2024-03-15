@@ -427,10 +427,14 @@ plt.savefig(root_folder + '/optimization/saved_files/plots/roe_vs_time.png', dpi
 plt.figure(figsize=(12,8)) #figsize=(20,5)
 for j in range(3):
     plt.subplot(1,3,j+1)
-    plt.stem(time_hrz[:t_ws_show]/period_ref, actions_cvx[j,:t_ws_show]*1000., 'k--', markerfmt='D', label='CVX')
-    plt.stem(time_hrz/period_ref, actions_scp_cvx[j,:]*1000., 'k-', label='SCP-CVX')
-    plt.stem(time_hrz[:t_ws_show]/period_ref, actions_rtn_ws_DT[j,:t_ws_show]*1000., 'b--', markerfmt='D', label='ART')
-    plt.stem(time_hrz/period_ref, actions_scp_DT[j,:]*1000., 'b-', label='SCP-ART')    
+    if warmstart == 'cvx' or warmstart == 'both':
+        plt.stem(time_hrz[:t_ws_show] / period_ref, actions_cvx[j, :t_ws_show] * 1000., 'k--', markerfmt='D',
+                 label='CVX')
+        plt.stem(time_hrz / period_ref, actions_scp_cvx[j, :] * 1000., 'k-', label='SCP-CVX')
+    if warmstart == 'transformer' or warmstart == 'both':
+        plt.stem(time_hrz[:t_ws_show] / period_ref, actions_rtn_ws_DT[j, :t_ws_show] * 1000., 'b--', markerfmt='D',
+                 label='ART')
+        plt.stem(time_hrz / period_ref, actions_scp_DT[j, :] * 1000., 'b-', label='SCP-ART')
     if j == 0:
         plt.xlabel('time [orbits]', fontsize=20)
         plt.ylabel('$ \Delta v_r$ [mm/s]', fontsize=20)
