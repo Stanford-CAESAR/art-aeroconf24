@@ -250,6 +250,24 @@ def ocp_scp(stm, cim, psi, s_0, s_ref, trust_region, n_time):
     return s_opt, a_opt, prob.status, prob.value
 
 def solve_scp(stm, cim, psi, state_roe_0, states_roe_ref, n_time):
+    """Solves a sequential convex programming (SCP) problem for spacecraft rendezvous trajectory optimization.
+
+    Args:
+        stm (numpy.ndarray): State transition matrix of shape (6, 6, n_time-1).
+        cim (numpy.ndarray): Control input matrix of shape (6, 3, n_time).
+        psi (numpy.ndarray): Mapping matrix from relative orbital elements (ROE) to relative translational motion (RTN) of shape (6, 6, n_time).
+        state_roe_0 (numpy.ndarray): Initial ROE state vector of shape (6,).
+        states_roe_ref (numpy.ndarray): Reference ROE state trajectory of shape (6, n_time).
+        n_time (int): Number of time steps in the trajectory.
+
+    Returns:
+        tuple: A tuple containing the following elements:
+            - states_roe (numpy.ndarray): Optimized ROE state trajectory of shape (6, n_time).
+            - actions (numpy.ndarray): Optimized control input trajectory of shape (3, n_time).
+            - feas (str): Feasibility status of the optimization problem ('optimal' if feasible, 'failure' otherwise).
+            - iter_SCP (int): Number of SCP iterations performed.
+            - J_vect (numpy.ndarray): Cost values at each SCP iteration of shape (iter_max_SCP,).
+            - runtime_scp (float): Runtime of the SCP optimization in seconds."""
 
     beta_SCP = (trust_regionf/trust_region0)**(1/iter_max_SCP)
 
