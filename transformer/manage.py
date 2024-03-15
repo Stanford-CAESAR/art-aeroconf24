@@ -238,7 +238,6 @@ def get_DT_model(model_name, train_loader, eval_loader):
     model = AutonomousRendezvousTransformer(config)
     model_size = sum(t.numel() for t in model.parameters())
     print(f"GPT size: {model_size/1000**2:.1f}M parameters")
-    model.to(device);
 
     # DT optimizer and accelerator
     optimizer = AdamW(model.parameters(), lr=3e-5)
@@ -247,6 +246,7 @@ def get_DT_model(model_name, train_loader, eval_loader):
         model, optimizer, train_loader, eval_loader
     )
     accelerator.load_state(root_folder + '/transformer/saved_files/checkpoints/' + model_name)
+    model.to(device)
 
     return model.eval()
 
