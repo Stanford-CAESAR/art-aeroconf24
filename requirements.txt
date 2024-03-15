@@ -14,3 +14,4 @@ tokenizers==0.13.3
 tqdm==4.66.1
 transformers==4.32.0
 osqp==0.6.1
+wxpython==4.2.1; sys_platform == 'darwin'
