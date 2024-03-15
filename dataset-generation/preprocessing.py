@@ -76,3 +76,10 @@ torch.save(torch_ctgs_scp, args.data_dir + '/torch_ctgs_scp.pth')
 
 torch_ctgs_cvx = torch.from_numpy(compute_constraint_to_go(states_rtn_cvx, n_data, n_time))
 torch.save(torch_ctgs_cvx, args.data_dir + '/torch_ctgs_cvx.pth')
+
+# Generate and save permutation
+total_data_points = states_roe_scp.shape[0] + states_roe_cvx.shape[0]
+permutation = np.random.permutation(total_data_points)
+np.save(args.data_dir + '/permutation.npy', permutation)
+
+print('Done.')
