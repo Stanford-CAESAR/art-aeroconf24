@@ -19,6 +19,7 @@ from torch.optim import AdamW
 
 from transformers import DecisionTransformerConfig, DecisionTransformerModel, Trainer, TrainingArguments, get_scheduler
 from accelerate import Accelerator
+from transformer.art import AutonomousRendezvousTransformer
 
 from dynamics.orbit_dynamics import *
 from optimization.rpod_scenario import *
@@ -32,6 +33,7 @@ args.data_dir = root_folder + '/' + args.data_dir
 
 # select device based on availability of GPU
 verbose = False # set to True to get additional print statements
+use_lr_scheduler = True
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Running on device: {device}\n")
 
@@ -73,14 +75,18 @@ actions_std = (torch_actions.std(dim=0) + 1e-6)
 rtgs_mean = torch_rtgs.mean(dim=0)
 rtgs_std = (torch_rtgs.std(dim=0) + 1e-6)
 
+ctgs_mean = torch_ctgs.mean(dim=0)
+ctgs_std = (torch_ctgs.std(dim=0) + 1e-6)
+
 states_norm = ((torch_states - states_mean) / (states_std + 1e-6))
 actions_norm = ((torch_actions - actions_mean) / (actions_std + 1e-6))
 rtgs_norm = ((torch_rtgs - rtgs_mean) / (rtgs_std + 1e-6))
+ctgs_norm = ((torch_ctgs - ctgs_mean) / (ctgs_std + 1e-6))
 
 # Separate dataset in train and val data
 n = int(0.9*n_data)
-train_data = {'states':states_norm[:n, :], 'actions':actions_norm[:n, :], 'rtgs':rtgs_norm[:n, :]}
-val_data = {'states':states_norm[n:, :], 'actions':actions_norm[n:, :], 'rtgs':rtgs_norm[n:, :]}
+train_data = {'states':states_norm[:n, :], 'actions':actions_norm[:n, :], 'rtgs':rtgs_norm[:n, :], 'ctgs':ctgs_norm[:n, :]}
+val_data = {'states':states_norm[n:, :], 'actions':actions_norm[n:, :], 'rtgs':rtgs_norm[n:, :], 'ctgs':ctgs_norm[n:, :]}
 
 # RPDO data class
 class RpodDataset(Dataset):
@@ -103,9 +109,11 @@ class RpodDataset(Dataset):
                         for i in ix]).view(self.max_len, n_action).float()
         rtgs = torch.stack([self.data['rtgs'][i, :]
                         for i in ix]).view(self.max_len, 1).float()
+        ctgs = torch.stack([self.data['ctgs'][i, :]
+                        for i in ix]).view(self.max_len, 1).float()
         timesteps = torch.tensor([[i for i in range(self.max_len)] for _ in ix]).view(self.max_len).long()
         attention_mask = torch.ones(1, self.max_len).view(self.max_len).long()
-        return states, actions, rtgs, timesteps, attention_mask, ix
+        return states, actions, rtgs, ctgs, timesteps, attention_mask, ix
 
     def get_data_size(self):
         return self.n_data
@@ -113,12 +121,13 @@ class RpodDataset(Dataset):
 # Initialize dataset objects
 train_dataset = RpodDataset('train')
 test_dataset = RpodDataset('val')
-states_i, actions_i, rtgs_i, timesteps_i, attention_mask_i, ix = train_dataset[0]
+states_i, actions_i, rtgs_i, ctgs_i, timesteps_i, attention_mask_i, ix = train_dataset[0]
 
 if verbose:
     print("states:", states_i.shape)
     print("actions:", actions_i.shape)
     print("rtgs:", rtgs_i.shape)
+    print("ctgs:", rtgs_i.shape)
     print("timesteps:", timesteps_i.shape)
     print("attention_mask:", attention_mask_i.shape)
 
@@ -159,7 +168,7 @@ config = DecisionTransformerConfig(
     )
 
 print('Intializing Transformer Model\n')
-model = DecisionTransformerModel(config)
+model = AutonomousRendezvousTransformer(config)
 model_size = sum(t.numel() for t in model.parameters())
 print(f"GPT size: {model_size/1000**2:.1f}M parameters")
 model.to(device);
@@ -173,14 +182,15 @@ model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
 # for now this is unused. Potentially we can implement learning rate schedules
 num_train_epochs = 1
 num_update_steps_per_epoch = len(train_dataloader)
-num_training_steps = 10000000000
 
-lr_scheduler = get_scheduler(
-    name="linear",
-    optimizer=optimizer,
-    num_warmup_steps=10,
-    num_training_steps=num_training_steps,
-)
+if use_lr_scheduler:
+    num_training_steps = 10000000000
+    lr_scheduler = get_scheduler(
+        name="linear",
+        optimizer=optimizer,
+        num_warmup_steps=10,
+        num_training_steps=num_training_steps,
+    )
 
 # Eval function to plot results during training
 eval_iters = 100
@@ -192,13 +202,13 @@ def evaluate():
     losses_action = []
     for step in range(eval_iters):
         data_iter = iter(eval_dataloader)
-        states_i, actions_i, rtgs_i, timesteps_i, attention_mask_i, ix = next(data_iter)
+        states_i, actions_i, rtgs_i, ctgs_i, timesteps_i, attention_mask_i, ix = next(data_iter)
         with torch.no_grad():
-            state_preds, action_preds, return_preds = model(
+            state_preds, action_preds = model(
                 states=states_i,
                 actions=actions_i,
-                rewards=None,
                 returns_to_go=rtgs_i,
+                constraints_to_go=ctgs_i,
                 timesteps=timesteps_i,
                 attention_mask=attention_mask_i,
                 return_dict=False,
@@ -225,12 +235,12 @@ completed_steps = 0
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader, start=0):
         with accelerator.accumulate(model):
-            states_i, actions_i, rtgs_i, timesteps_i, attention_mask_i, ix = batch
-            state_preds, action_preds, return_preds = model(
+            states_i, actions_i, rtgs_i, ctgs_i, timesteps_i, attention_mask_i, ix = batch
+            state_preds, action_preds = model(
                 states=states_i,
                 actions=actions_i,
-                rewards=None,
                 returns_to_go=rtgs_i,
+                constraints_to_go=ctgs_i,
                 timesteps=timesteps_i,
                 attention_mask=attention_mask_i,
                 return_dict=False,
@@ -244,7 +254,8 @@ for epoch in range(num_train_epochs):
             if step % 100 == 0:
                 accelerator.print(
                     {
-                        "lr": lr_scheduler.get_lr(),
+                        #"lr": lr_scheduler.get_lr(),
+                        "lr":  lr_scheduler.get_lr() if use_lr_scheduler else optimizer.param_groups[0]['lr'],
                         "samples": step * samples_per_step,
                         "steps": completed_steps,
                         "loss/train": loss.item(),
@@ -253,7 +264,8 @@ for epoch in range(num_train_epochs):
             accelerator.backward(loss)
             accelerator.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
-            lr_scheduler.step()
+            if use_lr_scheduler:
+                lr_scheduler.step()
             optimizer.zero_grad()
             completed_steps += 1
             if (step % (eval_steps)) == 0:
@@ -262,4 +274,4 @@ for epoch in range(num_train_epochs):
                 model.train()
                 accelerator.wait_for_everyone()
             if (step % eval_steps*10) == 0:
-               accelerator.save_state(root_folder + '/transformer/saved_files/checkpoints/checkpoint_rtn_art_train')
+               accelerator.save_state(root_folder + '/transformer/saved_files/checkpoints/checkpoint_rtn_art_train2')
