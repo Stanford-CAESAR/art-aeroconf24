@@ -274,4 +274,4 @@ for epoch in range(num_train_epochs):
                 model.train()
                 accelerator.wait_for_everyone()
             if (step % eval_steps*10) == 0:
-               accelerator.save_state(root_folder + '/transformer/saved_files/checkpoints/checkpoint_rtn_art_train2')
+               accelerator.save_state(root_folder + '/transformer/saved_files/checkpoints/checkpoint_rtn_art_train')
